@@ -1,4 +1,15 @@
 const GAME_OVER = "Game Over";
+const NUM_CELLS = 20;
+const CHANCE_FOOD = 0.1;
+const CHANCE_FOOD_SPOIL = 0.05;
+// TODO make this a function of number of moves
+const CHANCE_REMOVE_POISON = 0.05;
+const FOOD_COLOUR = 'green';
+const SPOILED_FOOD_COLOUR = 'yellow';
+const POISON_COLOUR = 'red';
+const SNAKE_COLOUR = 'white';
+const TICK_MILLIS = 200;
+const MAX_TICKS = 1000;
 
 var intervalId;
 var tickCount = 0;
@@ -6,22 +17,30 @@ var canvas;
 var w;
 var h;
 var ctx;
-var snake = {x: 0, y: 0, dir: {x: 1, y: 0}, parts: [{x: 0, y:0}]};
-var numCells = 20;
+var snake = {parts: [{x: 0, y:0}], dir: {x: 1, y: 0}};
 var cellWidth;
 var cellHeight;
 var snakeLength = 1;
 var maxLength = 0;
 var numMoves = 0;
 var isAlive = true;
+var food = [];
+var spoiledFood = [];
+var poison = [];
+
+// TODO - powerup - food never spoils for x seconds
+// TODO - powerup - telleport (no out of bounds) for x seconds
+// TODO - powerup - cross own path for x seconds
+// TODO - powerup - slow down by y% for x seconds
 
 function start(){
   console.log("Started");
   document.addEventListener("keydown", handle_key_event);
   document.getElementById("game_over").style.visibility = "hidden";
+  document.getElementById("error").innerText = "";
   canvas_setup();
   snake_setup();
-  intervalId = setInterval(tick, 800)
+  intervalId = setInterval(tick, TICK_MILLIS)
 }
 
 function canvas_setup(){
@@ -30,59 +49,160 @@ function canvas_setup(){
   w = canvas.width;
   h = canvas.height;
   console.log(`Canvas w: ${w}, h: ${h}`);
-  cellWidth = Math.floor((w - (w % 10)) / numCells);
-  cellHeight = Math.floor((h - (h % 10)) / numCells);
+  cellWidth = Math.floor((w - (w % 10)) / NUM_CELLS);
+  cellHeight = Math.floor((h - (h % 10)) / NUM_CELLS);
 }
 
 function snake_setup(){
-  snake.x = Math.floor(numCells / 2);
-  snake.y = Math.floor(numCells / 2);
+  snake.x = Math.floor(NUM_CELLS / 2);
+  snake.y = Math.floor(NUM_CELLS / 2);
 }
 
 function tick(){
   tickCount += 1;
-  if(tickCount == 15){
+  if(tickCount == MAX_TICKS){
     stop();
     return;
   }
   move();
-  if(!is_dead()){
-    update_score();
-    draw();
-    console.log("Tick");
+  const snakeHead = snake.parts[0];
+  check_food(snakeHead);
+
+  if(is_dead()){
+    stop();
+    document.getElementById("game_over").style.visibility = "visible";
+    return;
+  }
+
+  maybe_food();
+  maybe_spoil_food();
+  maybe_poison();
+  maybe_remove_poison();
+  update_score();
+  draw();
+  //console.log("Tick");
+}
+
+function maybe_food(){
+  isFoodCreated = Math.random() <= CHANCE_FOOD;
+  if(isFoodCreated){
+    const newX = Math.floor(Math.random() * NUM_CELLS)
+    const newY = Math.floor(Math.random() * NUM_CELLS)
+    maybe_add_food({x: newX, y: newY});
   }
 }
 
+function maybe_add_food(point){
+  isOnSnake = is_on_snake(point);
+  isOnFood = is_on_food(point);
+  if(!isOnSnake && !isOnFood){
+    food.push(point);
+  }
+}
+
+function maybe_spoil_food(){
+  if(Math.random() <= CHANCE_FOOD_SPOIL){
+    const randomFoodPoint = random_element(food);
+    if(randomFoodPoint !== undefined){
+      remove_food(randomFoodPoint);
+      spoiledFood.push(randomFoodPoint);
+    }
+  }
+}
+
+function maybe_poison(){
+  if(Math.random() <= CHANCE_FOOD_SPOIL){
+    const randomSpoiledFoodPoint = random_element(spoiledFood);
+    if(randomSpoiledFoodPoint !== undefined){
+      remove_spoiled_food(randomSpoiledFoodPoint);
+      poison.push(randomSpoiledFoodPoint);
+    }
+  }
+}
+
+function maybe_remove_poison(){
+  if(Math.random() <= CHANCE_REMOVE_POISON){
+    const randomPoisonPoint = random_element(poison);
+    if(randomPoisonPoint !== undefined){
+      remove_poison(randomPoisonPoint);
+    }
+  }
+}
+
+function random_element(elements){
+  if(elements.length > 0){
+    const randomIndex = Math.floor(Math.random() * elements.length);
+    return elements[randomIndex];
+  }
+  return undefined;
+}
+
 function move(){
-  const firstPart = snake.parts[0];
-  const newX = firstPart.x + snake.dir.x;
-  const newY = firstPart.y + snake.dir.y;
+  const snakeHead = snake.parts[0];
+  const newX = snakeHead.x + snake.dir.x;
+  const newY = snakeHead.y + snake.dir.y;
   const newSnakePart = {x: newX, y: newY};
-
   snake.parts.unshift(newSnakePart);
+}
 
-  hasGrown = has_grown(newX, newY);
-  if(!has_grown(newX, newY)){
+function check_food(point){
+  hasGrown = has_grown(point);
+  if(hasGrown){
+    //console.log(`has grown because food on point ${point.x}, ${point.y}`);
+    remove_food(point);
+  }else{
+    //console.log(`Popping off tail because no food on point ${point.x}, ${point.y}`);
+    snake.parts.pop();
+  }
+
+  // TODO turn the snake green or red or something
+  if(has_shrunk(point)){
+    remove_spoiled_food(point) && snake.parts.length > 0;
     snake.parts.pop();
   }
 }
 
-function has_grown(x, y){
-  return has_food(x, y);
+function has_grown(point){
+  return is_on_food(point);
 }
 
-function has_food(x, y){
-  return false;
+function has_shrunk(point){
+  return is_on_spoiled_food(point);
 }
 
 function is_dead(){
-  // TODO end game if snake goes off edge
-  // TODO end game if snake runs into itself
-  isOutOfBounds = outside_bounds(snake.parts[0]);
-  isOnSelf = is_on_self(snake.x, snake.y, snake.parts);
-  if(isOutOfBounds || isOnSelf){
-    stop();
-    document.getElementById("game_over").style.visibility = "visible";
+  const snakeHead = snake.parts[0];
+  let isOutOfBounds = false;
+  let isOnSelf = false;
+  let isOnPoison = false;
+
+  hasShrunkToNothing = has_shrunk_to_nothing();
+
+  // If the snake has shrunk to nothing then there are no points left
+  // to check for other conditions
+  if(!hasShrunkToNothing){
+    isOutOfBounds = !hasShrunkToNothing && is_outside_bounds(snakeHead);
+    isOnSelf = !hasShrunkToNothing && is_snake_on_self();
+    isOnPoison = !hasShrunkToNothing && is_on_poison(snakeHead);
+  }
+
+  console.log(`isOut: ${isOutOfBounds}, isOnSelf: ${isOnSelf}, isOnPoison: ${isOnPoison}`);
+
+  if(isOutOfBounds || isOnSelf || isOnPoison || hasShrunkToNothing){
+    let errorStrings = [];
+    if(isOutOfBounds){
+      errorStrings.push("Out of bounds.");
+    }
+    if(isOnSelf){
+      errorStrings.push("Snake ate itself.");
+    }
+    if(isOnPoison){
+      errorStrings.push("Snake ate poison.");
+    }
+    if(hasShrunkToNothing){
+      errorStrings.push("Snake shriveled up and died.");
+    }
+    document.getElementById("error").innerText = errorStrings.join(", ");
     return true;
   }
   return false;
@@ -93,13 +213,40 @@ function stop(){
   clearInterval(intervalId);
 }
 
-function outside_bounds({x, y}){
-  return x < 0 || y < 0 || x >= numCells || y >= numCells;
+function is_outside_bounds({x, y}){
+  return x < 0 || y < 0 || x >= NUM_CELLS || y >= NUM_CELLS;
 }
 
-function is_on_self(x, y, parts){
-  maybePart = parts.find(({x: px, y: py}) => px == x && py == y);
-  return maybePart !== undefined;
+function is_snake_on_self(){
+  const head = snake.parts[0];
+  const tail = snake.parts.slice(1);
+  return is_on(head, tail);
+}
+
+function is_on_snake(point){
+  return is_on(point, snake.parts);
+}
+
+function is_on_food(point){
+  return is_on(point, food);
+}
+
+function is_on_spoiled_food(point){
+  return is_on(point, spoiledFood);
+}
+
+function is_on_poison(point){
+  return is_on(point, poison);
+}
+
+function is_on(point, elements){
+  maybeElement = elements.find((elem) => point.x == elem.x && point.y == elem.y);
+  return maybeElement !== undefined;
+}
+
+function has_shrunk_to_nothing(){
+  //console.log(`snake.parts.length = ${snake.parts.length}`);
+  return snake.parts.length < 1;
 }
 
 function update_score(){
@@ -107,15 +254,18 @@ function update_score(){
   movesElem = document.getElementById("moves");
   movesElem.innerText = `Moves: ${numMoves}`;
 
-  length = snake.parts.length
+  length = snake.parts.length;
   lengthElem = document.getElementById("length");
   lengthElem.innerText = `Length: ${length}`;
 }
 
 function draw(){
   clear();
-  draw_board(numCells);
+  draw_board(NUM_CELLS);
   draw_snake();
+  draw_food();
+  draw_spoiled_food();
+  draw_poison();
 }
 
 function clear(){
@@ -166,16 +316,26 @@ function draw_board_horizontal_lines(numCells){
 
 
 function draw_snake(){
-  snake.parts.map(part => draw_part(part));
+  snake.parts.map(part => draw_cell(part, SNAKE_COLOUR));
 }
 
-function draw_part({x: snakeX, y: snakeY}){
-  console.log(`Drawing part ${snakeX}, ${snakeY}`);
-  x = cellWidth * snakeX;
-  y = cellHeight * snakeY;
-  //console.log(`draw snake at ${x}, ${y}`);
-  ctx.fillStyle = 'white';
-  ctx.fillRect(x, y, cellWidth, cellHeight);
+function draw_food(){
+  food.map(point => draw_cell(point, FOOD_COLOUR));
+}
+
+function draw_spoiled_food(){
+  spoiledFood.map(point => draw_cell(point, SPOILED_FOOD_COLOUR));
+}
+
+function draw_poison(){
+  poison.map(point => draw_cell(point, POISON_COLOUR));
+}
+
+function draw_cell({x, y}, colour){
+  xPixel = cellWidth * x;
+  yPixel = cellHeight * y;
+  ctx.fillStyle = colour;
+  ctx.fillRect(xPixel, yPixel, cellWidth, cellHeight);
 }
 
 function handle_key_event(event){
@@ -184,6 +344,8 @@ function handle_key_event(event){
   const LEFT = '37';
   const RIGHT = '39';
   event = event || window.event;
+
+  console.log(`keyevent: ${event}`);
 
   if (event.keyCode == UP) {
     snake.dir = {x: 0, y: -1};
@@ -197,4 +359,16 @@ function handle_key_event(event){
     //console.log(`Don't recognize event ${event}`);
     "ok";
   }
+}
+
+function remove_food({x: removeX, y: removeY}){
+  food = food.filter(({x, y}) => x != removeX || y != removeY);
+}
+
+function remove_spoiled_food({x: removeX, y: removeY}){
+  spoiledFood = spoiledFood.filter(({x, y}) => x != removeX && y != removeY);
+}
+
+function remove_poison({x: removeX, y: removeY}){
+  poison = poison.filter(({x, y}) => x != removeX && y != removeY);
 }
