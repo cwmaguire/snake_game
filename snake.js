@@ -34,13 +34,18 @@ var poison = [];
 // TODO - powerup - slow down by y% for x seconds
 
 function start(){
-  console.log("Started");
   document.addEventListener("keydown", handle_key_event);
   document.getElementById("game_over").style.visibility = "hidden";
   document.getElementById("error").innerText = "";
+  document.getElementById("restart").addEventListener("click", restart);
   canvas_setup();
   snake_setup();
   intervalId = setInterval(tick, TICK_MILLIS)
+}
+
+function restart(){
+  reset_score();
+  start();
 }
 
 function canvas_setup(){
@@ -54,8 +59,10 @@ function canvas_setup(){
 }
 
 function snake_setup(){
-  snake.x = Math.floor(NUM_CELLS / 2);
-  snake.y = Math.floor(NUM_CELLS / 2);
+  x = Math.floor(NUM_CELLS / 2);
+  y = Math.floor(NUM_CELLS / 2);
+  snake.parts = [{x: x, y: y}];
+  snake.dir = {x: 1, y: 0};
 }
 
 function tick(){
@@ -181,12 +188,12 @@ function is_dead(){
   // If the snake has shrunk to nothing then there are no points left
   // to check for other conditions
   if(!hasShrunkToNothing){
-    isOutOfBounds = !hasShrunkToNothing && is_outside_bounds(snakeHead);
-    isOnSelf = !hasShrunkToNothing && is_snake_on_self();
-    isOnPoison = !hasShrunkToNothing && is_on_poison(snakeHead);
+    isOutOfBounds = is_outside_bounds(snakeHead);
+    isOnSelf = is_snake_on_self();
+    isOnPoison = is_on_poison(snakeHead);
   }
 
-  console.log(`isOut: ${isOutOfBounds}, isOnSelf: ${isOnSelf}, isOnPoison: ${isOnPoison}`);
+  //console.log(`isOut: ${isOutOfBounds}, isOnSelf: ${isOnSelf}, isOnPoison: ${isOnPoison}`);
 
   if(isOutOfBounds || isOnSelf || isOnPoison || hasShrunkToNothing){
     let errorStrings = [];
@@ -218,9 +225,13 @@ function is_outside_bounds({x, y}){
 }
 
 function is_snake_on_self(){
-  const head = snake.parts[0];
-  const tail = snake.parts.slice(1);
-  return is_on(head, tail);
+  if(snake.parts.length > 1){
+    const head = snake.parts[0];
+    const tail = snake.parts.slice(1);
+    tail.map(({x, y}) => console.log(`Check if ${head.x}, ${head.y} is on ${x}, ${y}`));
+    return is_on(head, tail);
+  }
+  return false;
 }
 
 function is_on_snake(point){
@@ -257,6 +268,15 @@ function update_score(){
   length = snake.parts.length;
   lengthElem = document.getElementById("length");
   lengthElem.innerText = `Length: ${length}`;
+}
+
+function reset_score(){
+  numMoves += 1;
+  movesElem = document.getElementById("moves");
+  movesElem.innerText = `Moves: 0`;
+
+  lengthElem = document.getElementById("length");
+  lengthElem.innerText = `Length: 1`;
 }
 
 function draw(){
@@ -339,26 +359,61 @@ function draw_cell({x, y}, colour){
 }
 
 function handle_key_event(event){
-  const UP = '38';
-  const DOWN = '40';
-  const LEFT = '37';
-  const RIGHT = '39';
+  const UP = 38;
+  const DOWN = 40;
+  const LEFT = 37;
+  const RIGHT = 39;
   event = event || window.event;
 
-  console.log(`keyevent: ${event}`);
+  const currentDirection = current_direction();
+  //console.log(`keyevent: ${event}`);
 
-  if (event.keyCode == UP) {
+  if (event.keyCode == UP && currentDirection != 'down') {
     snake.dir = {x: 0, y: -1};
-  } else if (event.keyCode == DOWN) {
+  } else if (event.keyCode == DOWN && currentDirection != 'up') {
     snake.dir = {x: 0, y: 1};
-  } else if (event.keyCode == LEFT) {
+  } else if (event.keyCode == LEFT && currentDirection != 'right') {
     snake.dir = {x: -1, y: 0};
-  } else if (event.keyCode == RIGHT) {
+  } else if (event.keyCode == RIGHT && currentDirection != 'left') {
     snake.dir = {x: 1, y: 0};
   }else{
     //console.log(`Don't recognize event ${event}`);
+    const desiredDirection = arrow_key_direction(event.keyCode);
+    //console.log(`Tried to go ${desiredDirection} but already going ${currentDirection}`);
     "ok";
   }
+}
+
+function current_direction(){
+  const {x, y} = snake.dir;
+  if(y == -1){
+    return 'up';
+  }else if(y == 1){
+    return 'down';
+  }else if(x == 1){
+    return 'right';
+  }else if(x == -1){
+    return 'left';
+  }
+}
+
+function arrow_key_direction(keycode){
+  const UP = 38;
+  const DOWN = 40;
+  const LEFT = 37;
+  const RIGHT = 39;
+
+  switch(keycode){
+    case UP:
+      return 'up';
+    case DOWN:
+      return 'down';
+    case LEFT:
+      return 'left';
+    case RIGHT:
+      return 'right';
+  }
+  return keycode;
 }
 
 function remove_food({x: removeX, y: removeY}){
