@@ -27,6 +27,7 @@ var isAlive = true;
 var food = [];
 var spoiledFood = [];
 var poison = [];
+var hasSnakeMoved = false;
 
 // TODO - powerup - food never spoils for x seconds
 // TODO - powerup - telleport (no out of bounds) for x seconds
@@ -87,7 +88,16 @@ function tick(){
   maybe_remove_poison();
   update_score();
   draw();
+  allow_movement();
   //console.log("Tick");
+}
+
+function allow_movement(){
+  hasSnakeMoved = false;
+}
+
+function is_movement_allowed(){
+  return !hasSnakeMoved;
 }
 
 function maybe_food(){
@@ -228,7 +238,7 @@ function is_snake_on_self(){
   if(snake.parts.length > 1){
     const head = snake.parts[0];
     const tail = snake.parts.slice(1);
-    tail.map(({x, y}) => console.log(`Check if ${head.x}, ${head.y} is on ${x}, ${y}`));
+    //tail.map(({x, y}) => console.log(`Check if ${head.x}, ${head.y} is on ${x}, ${y}`));
     return is_on(head, tail);
   }
   return false;
@@ -359,6 +369,11 @@ function draw_cell({x, y}, colour){
 }
 
 function handle_key_event(event){
+  if(!is_movement_allowed()){
+    console.log(`Movement not allowed: hasSnakeMoved = ${hasSnakeMoved}`);
+    return;
+  }
+
   const UP = 38;
   const DOWN = 40;
   const LEFT = 37;
@@ -380,8 +395,9 @@ function handle_key_event(event){
     //console.log(`Don't recognize event ${event}`);
     const desiredDirection = arrow_key_direction(event.keyCode);
     //console.log(`Tried to go ${desiredDirection} but already going ${currentDirection}`);
-    "ok";
   }
+
+  hasSnakeMoved = true;
 }
 
 function current_direction(){
