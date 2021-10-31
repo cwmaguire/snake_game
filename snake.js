@@ -7,11 +7,22 @@ const SPEED_POWER_UP_AMT = 0.1;
 const SPEED_POWER_UP_DURATION_MILLIS = 5000;
 const MAX_SPEED_UP = 0.3;
 const NUM_CELLS = 20;
+
 const SNAKE_COLOUR = 'white';
+
+const DEFAULT_SHAPE_FUN = rectangle;
+
 const FOOD_COLOUR = 'green';
+const FOOD_SHAPE_FUN = diamond;
+
 const SPOILED_FOOD_COLOUR = 'yellow';
+const SPOILED_FOOD_SHAPE_FUN = diamond;
+
 const POISON_COLOUR = 'red';
+const POISON_SHAPE_FUN = diamond;
+
 const SPEED_POWER_UP_COLOUR = 'blue';
+const SPEED_POWER_UP_SHAPE_FUN = circle;
 
 var canvas;
 var ctx;
@@ -32,15 +43,19 @@ var numMoves = 0;
 function start(){
   add_restart_button_listener();
   add_arrow_key_listener();
+  clear_game();
+  reset_move_counter();
+  canvas_setup();
+  snake_setup();
+  setup_game_loop(INTERVAL_MILLIS);
+}
+
+function clear_game(){
   clear_score();
   clear_game_over();
   clear_error();
   clear_cells();
   clear_active_speed_ups();
-  reset_move_counter();
-  canvas_setup();
-  snake_setup();
-  setup_game_loop(INTERVAL_MILLIS);
 }
 
 function setup_game_loop(Millis){
@@ -340,26 +355,65 @@ function draw_snake(){
 }
 
 function draw_food(){
-  food.map(point => draw_cell(point, FOOD_COLOUR));
+  food.map(point => draw_cell(point, FOOD_COLOUR, FOOD_SHAPE_FUN));
 }
 
 function draw_spoiled_food(){
-  spoiledFood.map(point => draw_cell(point, SPOILED_FOOD_COLOUR));
+  spoiledFood.map(point => draw_cell(point, SPOILED_FOOD_COLOUR, SPOILED_FOOD_SHAPE_FUN));
 }
 
 function draw_poison(){
-  poison.map(point => draw_cell(point, POISON_COLOUR));
+  poison.map(point => draw_cell(point, POISON_COLOUR, POISON_SHAPE_FUN));
 }
 
 function draw_speed_power_ups(){
-  speedPowerUps.map(point => draw_cell(point, SPEED_POWER_UP_COLOUR));
+  speedPowerUps.map(point => draw_cell(point, SPEED_POWER_UP_COLOUR, SPEED_POWER_UP_SHAPE_FUN));
 }
 
-function draw_cell({x, y}, colour){
+function draw_cell({x, y}, colour, shapeFun = DEFAULT_SHAPE_FUN){
   xPixel = cellWidth * x;
   yPixel = cellHeight * y;
+  shapeFun(xPixel, yPixel, cellWidth, cellHeight, colour);
+}
+
+function rectangle(x, y, w, h, colour){
   ctx.fillStyle = colour;
-  ctx.fillRect(xPixel, yPixel, cellWidth, cellHeight);
+  ctx.fillRect(x, y, w, h);
+}
+
+function diamond(x, y, w, h, colour){
+  const xLeft = x;
+  const xMiddle = Math.floor(x + (w / 2));
+  const xRight = x + w;
+  const yTop = y;
+  const yMiddle = Math.floor(y + (h / 2));
+  const yBottom = y + h;
+
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.moveTo(xLeft, yMiddle);
+  ctx.lineTo(xMiddle, yTop);
+  ctx.lineTo(xRight, yMiddle);
+  ctx.lineTo(xMiddle, yBottom);
+  ctx.lineTo(xLeft, yMiddle);
+  ctx.fill();
+
+}
+
+function circle(x, y, w, h, colour){
+  const cellCenterX = Math.floor(x + (w / 2));
+  const cellCenterY = Math.floor(y + (h / 2));
+  const radiusX = Math.floor(w / 2 * 0.9);
+  const radiusY = Math.floor(h / 2 * 0.9);
+  const startRotationRadians = 0;
+  const radiansInCircle = Math.PI * 2;
+  const finishRotationRadians = radiansInCircle;
+  const rotation = 0;
+
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.ellipse(cellCenterX, cellCenterY, radiusX, radiusY, rotation, startRotationRadians, finishRotationRadians);
+  ctx.fill();
 }
 
 function handle_key_event(event){
