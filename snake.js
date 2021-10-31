@@ -45,7 +45,6 @@ function start(){
 
 function setup_game_loop(Millis){
   intervalId = setInterval(game_loop, Millis);
-  //console.log(`New interval ID: ${intervalId}`);
 }
 
 function addRestartButtonListener(){
@@ -95,7 +94,6 @@ function canvas_setup(){
   ctx = canvas.getContext("2d");
   w = canvas.width;
   h = canvas.height;
-  console.log(`Canvas w: ${w}, h: ${h}`);
 
   cellWidth = Math.floor((w - (w % 10)) / NUM_CELLS);
   cellHeight = Math.floor((h - (h % 10)) / NUM_CELLS);
@@ -224,10 +222,8 @@ function is_movement_allowed(){
 function grow_if_on_food(snakeHeadPoint){
   hasGrown = has_grown(snakeHeadPoint);
   if(hasGrown){
-    //console.log(`has grown because food on point ${point.x}, ${point.y}`);
     remove_food(snakeHeadPoint);
   }else{
-    //console.log(`Popping off tail because no food on point ${point.x}, ${point.y}`);
     snake.parts.pop();
   }
 }
@@ -243,7 +239,6 @@ function maybe_speed_up(snakeHeadPoint){
   if(is_on(snakeHeadPoint, speedPowerUps)){
     let powerUpId = new Date().getTime();
     let powerUp = {speed: SPEED_POWER_UP_AMT, id: powerUpId};
-    //console.log(`Created speed up: ${powerUpId}`);
     speedPowerUpsActive.push(powerUp);
     reset_interval();
     setup_clear_speed_power_up_timer(powerUpId);
@@ -256,37 +251,25 @@ function setup_clear_speed_power_up_timer(powerUpId){
 }
 
 function clear_speed_power_up(powerUpId){
-  //console.log(`Clearing speed up: ${powerUpId}`);
   speedPowerUpsActive = speedPowerUpsActive.filter(({id}) => id != powerUpId);
   reset_interval();
 }
 
-//function output_speed_power_ups_active({speed, id}){
-  //console.log(`Active speed power up: speed ${speed}, id ${id}`);
-//}
-
 function reset_interval(){
-  //console.log(`clear interval: ${intervalId}`);
   clearInterval(intervalId);
   const intervalMillis = calculate_interval_millis();
-  //console.log(`New interval: ${intervalMillis}`);
   setup_game_loop(intervalMillis);
 }
 
 function calculate_interval_millis(){
   const initialMultiplier = 1;
-  //let speedUpMultiplier = speedPowerUps.reduce((prev, curr) => prev - curr, initialMultiplier);
   let speedUpMultiplier = speedPowerUpsActive.reduce(subtract_speed_up, initialMultiplier);
-  //console.log(`initial speed multiplier: ${speedUpMultiplier}`);
   speedUpMultiplier = Math.max(MAX_SPEED_UP, speedUpMultiplier);
-  //console.log(`valid speed multiplier: ${speedUpMultiplier}`);
   const intervalMillis = INTERVAL_MILLIS * speedUpMultiplier;
-  //console.log(`new interval millis: ${intervalMillis}`);
   return intervalMillis;
 }
 
 function subtract_speed_up(prev, {speed}){
-  //console.log(`prev: ${prev}, speed: ${speed}`);
   return prev - speed;
 }
 
@@ -326,7 +309,6 @@ function draw_board_vertical_lines(numCells){
   const x = numCells * cellWidth;
   const y1 = 0;
   const y2 = (h - (h % 10));
-  //console.log(`Drawing vert line: cellWidth: ${cellWidth}, num cells: ${numCells}, x: ${x}, y2: ${y2}`);
   ctx.strokeStyle = 'white';
   ctx.beginPath();
   ctx.moveTo(x, y1);
@@ -344,7 +326,6 @@ function draw_board_horizontal_lines(numCells){
   const y = numCells * cellHeight;
   const x1 = 0;
   const x2 = (w - (w % 10));
-  //console.log(`H line: cellWidth: ${cellWidth}, num cells: ${numCells}, y: ${y}, x2: ${x2}`);
   ctx.strokeStyle = 'white';
   ctx.beginPath();
   ctx.moveTo(x1, y);
@@ -383,7 +364,6 @@ function draw_cell({x, y}, colour){
 
 function handle_key_event(event){
   if(!is_movement_allowed()){
-    console.log(`Movement not allowed: hasSnakeMoved = ${hasSnakeMoved}`);
     return;
 
   }
@@ -394,7 +374,6 @@ function handle_key_event(event){
   event = event || window.event;
 
   const currentDirection = current_direction();
-  //console.log(`keyevent: ${event}`);
 
   if (event.keyCode == UP && currentDirection != 'down') {
     snake.dir = {x: 0, y: -1};
@@ -404,10 +383,6 @@ function handle_key_event(event){
     snake.dir = {x: -1, y: 0};
   } else if (event.keyCode == RIGHT && currentDirection != 'left') {
     snake.dir = {x: 1, y: 0};
-  }else{
-    //console.log(`Don't recognize event ${event}`);
-    //const desiredDirection = arrow_key_direction(event.keyCode);
-    //console.log(`Tried to go ${desiredDirection} but already going ${currentDirection}`);
   }
 
   hasSnakeMoved = true;
@@ -456,11 +431,7 @@ function remove_poison(point){
 }
 
 function remove_speed_up(point){
-  console.log(`before remove ${point.x},${point.y}`);
-  speedPowerUps.map(({x, y}) => console.log(`Power up: ${x},${y}`), 1);
   speedPowerUps = remove_point(point, speedPowerUps);
-  console.log(`after remove`);
-  speedPowerUps.map(({x, y}) => console.log(`Power up: ${x},${y}`), 1);
 }
 
 function remove_point({x: removeX, y: removeY}, points){
@@ -511,20 +482,16 @@ function is_snake_on_self(){
   if(snake.parts.length > 3){
     const head = snake.parts[0];
     const tail = snake.parts.slice(1);
-    //tail.map(({x, y}) => console.log(`Check if ${head.x}, ${head.y} is on ${x}, ${y}`));
     return is_on(head, tail);
   }
   return false;
 }
 
 function stop(){
-  console.log("Stopped game loop");
-  console.log(`clear interval: ${intervalId}`);
   clearInterval(intervalId);
 }
 
 function has_shrunk_to_nothing(){
-  //console.log(`snake.parts.length = ${snake.parts.length}`);
   return snake.parts.length < 1;
 }
 
