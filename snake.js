@@ -2,11 +2,16 @@ const INTERVAL_MILLIS = 300;
 const CHANCE_FOOD = 0.6;
 const CHANCE_FOOD_SPOIL = 0.1;
 const CHANCE_REMOVE_POISON = 0.3;
+const CHANCE_SPEED_POWER_UP = 0.3;
+const SPEED_POWER_UP_AMT = 0.1;
+const SPEED_POWER_UP_DURATION_MILLIS = 5000;
+const MAX_SPEED_UP = 0.3;
 const NUM_CELLS = 20;
 const SNAKE_COLOUR = 'white';
 const FOOD_COLOUR = 'green';
 const SPOILED_FOOD_COLOUR = 'yellow';
 const POISON_COLOUR = 'red';
+const SPEED_POWER_UP_COLOUR = 'blue';
 
 var canvas;
 var ctx;
@@ -19,6 +24,8 @@ var hasSnakeMoved = false;
 var food = [];
 var spoiledFood = [];
 var poison = [];
+var speedPowerUps = [];
+var speedPowerUpsActive = [];
 var intervalId;
 var numMoves = 0;
 
@@ -28,15 +35,17 @@ function start(){
   clearScore();
   clearGameOver();
   clearError();
+  clearCells();
+  clearActiveSpeedUps();
   resetMoveCounter();
-  resetFoodSpoiledAndPoison();
   canvas_setup();
   snake_setup();
-  setup_game_loop();
+  setup_game_loop(INTERVAL_MILLIS);
 }
 
-function setup_game_loop(){
-  intervalId = setInterval(game_loop, INTERVAL_MILLIS);
+function setup_game_loop(Millis){
+  intervalId = setInterval(game_loop, Millis);
+  //console.log(`New interval ID: ${intervalId}`);
 }
 
 function addRestartButtonListener(){
@@ -70,10 +79,15 @@ function resetMoveCounter(){
   numMoves = 0;
 }
 
-function resetFoodSpoiledAndPoison(){
+function clearCells(){
   food = [];
   spoiledFood = [];
   poison = [];
+  speedPowerUps = [];
+}
+
+function clearActiveSpeedUps(){
+  speedPowerUpsActive = [];
 }
 
 function canvas_setup(){
@@ -99,6 +113,7 @@ function game_loop(){
   const snakeHead = snake.parts[0];
   grow_if_on_food(snakeHead);
   maybe_shrink(snakeHead);
+  maybe_speed_up(snakeHead);
 
   if(is_dead()){
     stop();
@@ -110,13 +125,14 @@ function game_loop(){
   maybe_spoil_food();
   maybe_poison();
   maybe_remove_poison();
+  maybe_speed_powerup();
   update_score();
   draw();
   allow_movement();
 }
 
 function maybe_food(){
-  let isFoodCreated = (Math.random() <= CHANCE_FOOD);
+  const isFoodCreated = (Math.random() <= CHANCE_FOOD);
   if(isFoodCreated){
     const newX = Math.floor(Math.random() * NUM_CELLS)
     const newY = Math.floor(Math.random() * NUM_CELLS)
@@ -158,6 +174,22 @@ function maybe_remove_poison(){
     if(randomPoisonPoint !== undefined){
       remove_poison(randomPoisonPoint);
     }
+  }
+}
+
+function maybe_speed_powerup(){
+  const isSpeedPowerUpCreated = (Math.random() <= CHANCE_SPEED_POWER_UP);
+  if(isSpeedPowerUpCreated){
+    const newX = Math.floor(Math.random() * NUM_CELLS)
+    const newY = Math.floor(Math.random() * NUM_CELLS)
+    maybe_add_speed_power_up({x: newX, y: newY});
+  }
+}
+
+function maybe_add_speed_power_up(point){
+  isOnSnake = is_on_snake(point);
+  if(!isOnSnake){
+    speedPowerUps.push(point);
   }
 }
 
@@ -207,6 +239,57 @@ function maybe_shrink(snakeHeadPoint){
   }
 }
 
+function maybe_speed_up(snakeHeadPoint){
+  if(is_on(snakeHeadPoint, speedPowerUps)){
+    let powerUpId = new Date().getTime();
+    let powerUp = {speed: SPEED_POWER_UP_AMT, id: powerUpId};
+    //console.log(`Created speed up: ${powerUpId}`);
+    speedPowerUpsActive.push(powerUp);
+    reset_interval();
+    setup_clear_speed_power_up_timer(powerUpId);
+    remove_speed_up(snakeHeadPoint);
+  }
+}
+
+function setup_clear_speed_power_up_timer(powerUpId){
+  setTimeout(clear_speed_power_up, SPEED_POWER_UP_DURATION_MILLIS, powerUpId);
+}
+
+function clear_speed_power_up(powerUpId){
+  //console.log(`Clearing speed up: ${powerUpId}`);
+  speedPowerUpsActive = speedPowerUpsActive.filter(({id}) => id != powerUpId);
+  reset_interval();
+}
+
+//function output_speed_power_ups_active({speed, id}){
+  //console.log(`Active speed power up: speed ${speed}, id ${id}`);
+//}
+
+function reset_interval(){
+  //console.log(`clear interval: ${intervalId}`);
+  clearInterval(intervalId);
+  const intervalMillis = calculate_interval_millis();
+  //console.log(`New interval: ${intervalMillis}`);
+  setup_game_loop(intervalMillis);
+}
+
+function calculate_interval_millis(){
+  const initialMultiplier = 1;
+  //let speedUpMultiplier = speedPowerUps.reduce((prev, curr) => prev - curr, initialMultiplier);
+  let speedUpMultiplier = speedPowerUpsActive.reduce(subtract_speed_up, initialMultiplier);
+  //console.log(`initial speed multiplier: ${speedUpMultiplier}`);
+  speedUpMultiplier = Math.max(MAX_SPEED_UP, speedUpMultiplier);
+  //console.log(`valid speed multiplier: ${speedUpMultiplier}`);
+  const intervalMillis = INTERVAL_MILLIS * speedUpMultiplier;
+  //console.log(`new interval millis: ${intervalMillis}`);
+  return intervalMillis;
+}
+
+function subtract_speed_up(prev, {speed}){
+  //console.log(`prev: ${prev}, speed: ${speed}`);
+  return prev - speed;
+}
+
 function has_shrunk(point){
   return is_on(point, spoiledFood);
 }
@@ -227,6 +310,7 @@ function draw(){
   draw_food();
   draw_spoiled_food();
   draw_poison();
+  draw_speed_power_ups();
 }
 
 function draw_board(numCells){
@@ -284,6 +368,10 @@ function draw_spoiled_food(){
 
 function draw_poison(){
   poison.map(point => draw_cell(point, POISON_COLOUR));
+}
+
+function draw_speed_power_ups(){
+  speedPowerUps.map(point => draw_cell(point, SPEED_POWER_UP_COLOUR));
 }
 
 function draw_cell({x, y}, colour){
@@ -367,8 +455,16 @@ function remove_poison(point){
   poison = remove_point(point, poison);
 }
 
+function remove_speed_up(point){
+  console.log(`before remove ${point.x},${point.y}`);
+  speedPowerUps.map(({x, y}) => console.log(`Power up: ${x},${y}`), 1);
+  speedPowerUps = remove_point(point, speedPowerUps);
+  console.log(`after remove`);
+  speedPowerUps.map(({x, y}) => console.log(`Power up: ${x},${y}`), 1);
+}
+
 function remove_point({x: removeX, y: removeY}, points){
-  return points.filter(({x, y}) => x != removeX && y != removeY);
+  return points.filter(({x, y}) => x != removeX || y != removeY);
 }
 
 function is_dead(){
@@ -423,6 +519,7 @@ function is_snake_on_self(){
 
 function stop(){
   console.log("Stopped game loop");
+  console.log(`clear interval: ${intervalId}`);
   clearInterval(intervalId);
 }
 
