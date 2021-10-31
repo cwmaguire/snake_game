@@ -30,14 +30,14 @@ var intervalId;
 var numMoves = 0;
 
 function start(){
-  addRestartButtonListener();
-  addArrowKeyListener();
-  clearScore();
-  clearGameOver();
-  clearError();
-  clearCells();
-  clearActiveSpeedUps();
-  resetMoveCounter();
+  add_restart_button_listener();
+  add_arrow_key_listener();
+  clear_score();
+  clear_game_over();
+  clear_error();
+  clear_cells();
+  clear_active_speed_ups();
+  reset_move_counter();
   canvas_setup();
   snake_setup();
   setup_game_loop(INTERVAL_MILLIS);
@@ -47,16 +47,16 @@ function setup_game_loop(Millis){
   intervalId = setInterval(game_loop, Millis);
 }
 
-function addRestartButtonListener(){
+function add_restart_button_listener(){
   let restartButton = document.getElementById("restart");
   restartButton.addEventListener("click", start);
 }
 
-function addArrowKeyListener(){
+function add_arrow_key_listener(){
   document.addEventListener("keydown", handle_key_event);
 }
 
-function clearScore(){
+function clear_score(){
   let lengthHeader = document.getElementById("length");
   lengthHeader.innerHtml = "Length: 0";
 
@@ -64,28 +64,28 @@ function clearScore(){
   movesHeader.innerHtml = "Moves: 0";
 }
 
-function clearGameOver(){
+function clear_game_over(){
   let gameOverHeading = document.getElementById("game_over");
   gameOverHeading.style.visibility = "hidden";
 }
 
-function clearError(){
+function clear_error(){
   let errorHeading = document.getElementById("error");
   errorHeading.style.visibility = "hidden";
 }
 
-function resetMoveCounter(){
+function reset_move_counter(){
   numMoves = 0;
 }
 
-function clearCells(){
+function clear_cells(){
   food = [];
   spoiledFood = [];
   poison = [];
   speedPowerUps = [];
 }
 
-function clearActiveSpeedUps(){
+function clear_active_speed_ups(){
   speedPowerUpsActive = [];
 }
 
