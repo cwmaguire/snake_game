@@ -2,27 +2,35 @@ const INTERVAL_MILLIS = 300;
 const CHANCE_FOOD = 0.6;
 const CHANCE_FOOD_SPOIL = 0.1;
 const CHANCE_REMOVE_POISON = 0.3;
-const CHANCE_SPEED_POWER_UP = 0.3;
+const CHANCE_SPEED_POWER_UP = 0.2;
+const CHANCE_TELEPORT_POWER_UP = 0.2;
 const SPEED_POWER_UP_AMT = 0.1;
 const SPEED_POWER_UP_DURATION_MILLIS = 5000;
 const MAX_SPEED_UP = 0.3;
+const TELEPORT_POWER_UP_DURATION_MILLIS = 5000;
 const NUM_CELLS = 20;
 
 const SNAKE_COLOUR = 'white';
 
-const DEFAULT_SHAPE_FUN = rectangle;
+const DEFAULT_SHAPE_FUN = draw_rectangle;
 
 const FOOD_COLOUR = 'green';
-const FOOD_SHAPE_FUN = diamond;
+const FOOD_SHAPE_FUN = draw_diamond;
 
 const SPOILED_FOOD_COLOUR = 'yellow';
-const SPOILED_FOOD_SHAPE_FUN = diamond;
+const SPOILED_FOOD_SHAPE_FUN = draw_diamond;
 
 const POISON_COLOUR = 'red';
-const POISON_SHAPE_FUN = diamond;
+const POISON_SHAPE_FUN = draw_diamond;
 
 const SPEED_POWER_UP_COLOUR = 'blue';
-const SPEED_POWER_UP_SHAPE_FUN = circle;
+const SPEED_POWER_UP_SHAPE_FUN = draw_circle;
+
+const TELEPORT_POWER_UP_COLOUR = 'white';
+//const TELEPORT_POWER_UP_SHAPE_FUN = draw_circle;
+const TELEPORT_POWER_UP_SHAPE_FUN = draw_plus_symbol;
+
+const NO_OP = () => {};
 
 var canvas;
 var ctx;
@@ -36,7 +44,8 @@ var food = [];
 var spoiledFood = [];
 var poison = [];
 var speedPowerUps = [];
-var speedPowerUpsActive = [];
+var teleportPowerUps = [];
+var powerUpsActive = [];
 var intervalId;
 var numMoves = 0;
 
@@ -55,7 +64,7 @@ function clear_game(){
   clear_game_over();
   clear_error();
   clear_cells();
-  clear_active_speed_ups();
+  clear_active_power_ups();
 }
 
 function setup_game_loop(Millis){
@@ -100,8 +109,8 @@ function clear_cells(){
   speedPowerUps = [];
 }
 
-function clear_active_speed_ups(){
-  speedPowerUpsActive = [];
+function clear_active_power_ups(){
+  powerUpsActive = [];
 }
 
 function canvas_setup(){
@@ -123,10 +132,21 @@ function snake_setup(){
 
 function game_loop(){
   move();
-  const snakeHead = snake.parts[0];
-  grow_if_on_food(snakeHead);
-  maybe_shrink(snakeHead);
-  maybe_speed_up(snakeHead);
+  maybe_teleport();
+  grow_if_on_food();
+  maybe_shrink();
+  maybe_activate_power_up(
+    {speed: SPEED_POWER_UP_AMT,
+     duration: SPEED_POWER_UP_DURATION_MILLIS,
+     init_fun: reset_interval,
+     teardown_fun: reset_interval},
+    speedPowerUps);
+  maybe_activate_power_up(
+    {teleport: true,
+     duration: TELEPORT_POWER_UP_DURATION_MILLIS,
+     init_fun: NO_OP,
+     teardown_fun: NO_OP},
+    teleportPowerUps);
 
   if(is_dead()){
     stop();
@@ -138,7 +158,8 @@ function game_loop(){
   maybe_spoil_food();
   maybe_poison();
   maybe_remove_poison();
-  maybe_speed_powerup();
+  maybe_powerup(CHANCE_SPEED_POWER_UP, speedPowerUps);
+  maybe_powerup(CHANCE_TELEPORT_POWER_UP, teleportPowerUps);
   update_score();
   draw();
   allow_movement();
@@ -190,19 +211,19 @@ function maybe_remove_poison(){
   }
 }
 
-function maybe_speed_powerup(){
-  const isSpeedPowerUpCreated = (Math.random() <= CHANCE_SPEED_POWER_UP);
-  if(isSpeedPowerUpCreated){
+function maybe_powerup(chance, powerUpArray){
+  const isPowerUpCreated = (Math.random() <= chance);
+  if(isPowerUpCreated){
     const newX = Math.floor(Math.random() * NUM_CELLS)
     const newY = Math.floor(Math.random() * NUM_CELLS)
-    maybe_add_speed_power_up({x: newX, y: newY});
+    maybe_add_power_up(powerUpArray, {x: newX, y: newY});
   }
 }
 
-function maybe_add_speed_power_up(point){
+function maybe_add_power_up(powerUpArray, point){
   isOnSnake = is_on_snake(point);
   if(!isOnSnake){
-    speedPowerUps.push(point);
+    powerUpArray.push(point);
   }
 }
 
@@ -234,7 +255,8 @@ function is_movement_allowed(){
   return !hasSnakeMoved;
 }
 
-function grow_if_on_food(snakeHeadPoint){
+function grow_if_on_food(){
+  const snakeHeadPoint = snake.parts[0];
   hasGrown = has_grown(snakeHeadPoint);
   if(hasGrown){
     remove_food(snakeHeadPoint);
@@ -243,31 +265,60 @@ function grow_if_on_food(snakeHeadPoint){
   }
 }
 
-function maybe_shrink(snakeHeadPoint){
+function maybe_shrink(){
+  const snakeHeadPoint = snake.parts[0];
   if(has_shrunk(snakeHeadPoint)){
     remove_spoiled_food(snakeHeadPoint) && snake.parts.length > 0;
     snake.parts.pop();
   }
 }
 
-function maybe_speed_up(snakeHeadPoint){
-  if(is_on(snakeHeadPoint, speedPowerUps)){
-    let powerUpId = new Date().getTime();
-    let powerUp = {speed: SPEED_POWER_UP_AMT, id: powerUpId};
-    speedPowerUpsActive.push(powerUp);
-    reset_interval();
-    setup_clear_speed_power_up_timer(powerUpId);
-    remove_speed_up(snakeHeadPoint);
+function maybe_teleport(){
+  const snakeHeadPoint = snake.parts[0];
+  if(is_outside_bounds(snakeHeadPoint) && has_active_teleport()){
+    teleport(snakeHeadPoint);
   }
 }
 
-function setup_clear_speed_power_up_timer(powerUpId){
-  setTimeout(clear_speed_power_up, SPEED_POWER_UP_DURATION_MILLIS, powerUpId);
+function has_active_teleport(){
+  const reduceFun =
+    function(hasActiveTeleport, {teleport}){
+      //console.log(`hasActiveTeleport: ${hasActiveTeleport}, teleport: ${teleport}`);
+      return hasActiveTeleport || teleport;
+    };
+  const hasActiveTeleport = powerUpsActive.reduce(reduceFun, false);
+  //console.log(`hasActiveTeleport: ${hasActiveTeleport}`);
+  return hasActiveTeleport;
 }
 
-function clear_speed_power_up(powerUpId){
-  speedPowerUpsActive = speedPowerUpsActive.filter(({id}) => id != powerUpId);
-  reset_interval();
+function teleport({x, y}){
+  newPoint = {x: x % NUM_CELLS, y: y % NUM_CELLS};
+  snake.parts.shift();
+  snake.parts.unshift(newPoint);
+}
+
+function maybe_activate_power_up(powerUp, powerUpsArray){
+  const snakeHead = snake.parts[0];
+  if(is_any_on(snakeHead, powerUpsArray)){
+    powerUp.id = new Date().getTime();
+    powerUpsActive.push(powerUp);
+    powerUp.init_fun();
+    setup_clear_power_up_timer(powerUp);
+    remove_power_up(snakeHead);
+    if(powerUp.teleport == true){
+      console.log(`Adding teleport at ${snakeHead.x},${snakeHead.y}`);
+    }
+    powerUpsActive.map(({id, teleport}) => console.log(`teleport: ${id}, ${teleport}`));
+  }
+}
+
+function setup_clear_power_up_timer({id, duration, teardown_fun}){
+  setTimeout(clear_power_up, duration, id, teardown_fun);
+}
+
+function clear_power_up(powerUpId, teardownFun){
+  powerUpsActive = powerUpsActive.filter(({id}) => id != powerUpId);
+  teardownFun();
 }
 
 function reset_interval(){
@@ -278,18 +329,22 @@ function reset_interval(){
 
 function calculate_interval_millis(){
   const initialMultiplier = 1;
-  let speedUpMultiplier = speedPowerUpsActive.reduce(subtract_speed_up, initialMultiplier);
+  let speedUpMultiplier = speedPowerUps.reduce(subtract_speed_up, initialMultiplier);
   speedUpMultiplier = Math.max(MAX_SPEED_UP, speedUpMultiplier);
   const intervalMillis = INTERVAL_MILLIS * speedUpMultiplier;
   return intervalMillis;
 }
 
 function subtract_speed_up(prev, {speed}){
-  return prev - speed;
+  if(speed != undefined){
+    return prev - speed;
+  }else{
+    return prev;
+  }
 }
 
 function has_shrunk(point){
-  return is_on(point, spoiledFood);
+  return is_any_on(point, spoiledFood);
 }
 
 function has_grown(snakeHeadPoint){
@@ -309,6 +364,7 @@ function draw(){
   draw_spoiled_food();
   draw_poison();
   draw_speed_power_ups();
+  draw_teleport_power_ups();
 }
 
 function draw_board(numCells){
@@ -370,18 +426,22 @@ function draw_speed_power_ups(){
   speedPowerUps.map(point => draw_cell(point, SPEED_POWER_UP_COLOUR, SPEED_POWER_UP_SHAPE_FUN));
 }
 
+function draw_teleport_power_ups(){
+  teleportPowerUps.map(point => draw_cell(point, TELEPORT_POWER_UP_COLOUR, TELEPORT_POWER_UP_SHAPE_FUN));
+}
+
 function draw_cell({x, y}, colour, shapeFun = DEFAULT_SHAPE_FUN){
   xPixel = cellWidth * x;
   yPixel = cellHeight * y;
   shapeFun(xPixel, yPixel, cellWidth, cellHeight, colour);
 }
 
-function rectangle(x, y, w, h, colour){
+function draw_rectangle(x, y, w, h, colour){
   ctx.fillStyle = colour;
   ctx.fillRect(x, y, w, h);
 }
 
-function diamond(x, y, w, h, colour){
+function draw_diamond(x, y, w, h, colour){
   const xLeft = x;
   const xMiddle = Math.floor(x + (w / 2));
   const xRight = x + w;
@@ -397,10 +457,9 @@ function diamond(x, y, w, h, colour){
   ctx.lineTo(xMiddle, yBottom);
   ctx.lineTo(xLeft, yMiddle);
   ctx.fill();
-
 }
 
-function circle(x, y, w, h, colour){
+function draw_circle(x, y, w, h, colour){
   const cellCenterX = Math.floor(x + (w / 2));
   const cellCenterY = Math.floor(y + (h / 2));
   const radiusX = Math.floor(w / 2 * 0.9);
@@ -414,6 +473,42 @@ function circle(x, y, w, h, colour){
   ctx.beginPath();
   ctx.ellipse(cellCenterX, cellCenterY, radiusX, radiusY, rotation, startRotationRadians, finishRotationRadians);
   ctx.fill();
+}
+
+function draw_plus_symbol(x, y, w, h, colour){
+  const narrowestDimension = Math.min(w, h);
+  //console.log(`narrowest dimension: ${w}, ${h} = ${narrowestDimension}`);
+  const halfCell = Math.floor(narrowestDimension / 2);
+  const quarterCell = Math.floor(narrowestDimension / 4);
+  console.log(`halfCell: ${halfCell}, quarterCell: ${quarterCell}`);
+
+  const xLeft = x;
+  const xVerticalBarLeft = x + quarterCell;
+  const xVerticalBarRight = x + quarterCell + halfCell;
+  const xRight = x + w;
+
+  const yTop = y;
+  const yHorizontalBarTop = y + quarterCell;
+  const yHorizontalBarBottom = y + quarterCell + halfCell;
+  const yBottom = y + h;
+
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.moveTo(xLeft, yHorizontalBarTop);
+  ctx.lineTo(xVerticalBarLeft, yHorizontalBarTop);
+  ctx.lineTo(xVerticalBarLeft, yTop);
+  ctx.lineTo(xVerticalBarRight, yTop);
+  ctx.lineTo(xVerticalBarRight, yHorizontalBarTop);
+  ctx.lineTo(xRight, yHorizontalBarTop);
+  ctx.lineTo(xRight, yHorizontalBarBottom);
+  ctx.lineTo(xVerticalBarRight, yHorizontalBarBottom);
+  ctx.lineTo(xVerticalBarRight, yBottom);
+  ctx.lineTo(xVerticalBarLeft, yBottom);
+  ctx.lineTo(xVerticalBarLeft, yHorizontalBarBottom);
+  ctx.lineTo(xLeft, yHorizontalBarBottom);
+  ctx.lineTo(xLeft, yHorizontalBarTop);
+  ctx.fill();
+
 }
 
 function handle_key_event(event){
@@ -456,20 +551,24 @@ function current_direction(){
 }
 
 function is_on_snake(point){
-  return is_on(point, snake.parts);
+  return is_any_on(point, snake.parts);
 }
 
 function is_on_food(point){
-  return is_on(point, food);
+  return is_any_on(point, food);
 }
 
 function is_on_poison(point){
-  return is_on(point, poison);
+  return is_any_on(point, poison);
 }
 
-function is_on(point, checkPoints){
+function is_any_on(point, checkPoints){
   const maybePoint = checkPoints.find((checkPoint) => point.x == checkPoint.x && point.y == checkPoint.y);
   return maybePoint !== undefined;
+}
+
+function maybe_get_power_up(point){
+  
 }
 
 function remove_food(point){
@@ -484,8 +583,9 @@ function remove_poison(point){
   poison = remove_point(point, poison);
 }
 
-function remove_speed_up(point){
+function remove_power_up(point){
   speedPowerUps = remove_point(point, speedPowerUps);
+  teleportPowerUps = remove_point(point, teleportPowerUps);
 }
 
 function remove_point({x: removeX, y: removeY}, points){
@@ -536,7 +636,7 @@ function is_snake_on_self(){
   if(snake.parts.length > 3){
     const head = snake.parts[0];
     const tail = snake.parts.slice(1);
-    return is_on(head, tail);
+    return is_any_on(head, tail);
   }
   return false;
 }
